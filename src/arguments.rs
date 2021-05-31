@@ -43,8 +43,8 @@ macro_rules! define_flags {
 	) => {
 		#[derive(Debug, Clone)]
 		pub struct Arguments {
-			$($optional_name: Option<$optional_return_type> ,)*
-			$($required_name: $required_return_type ,)*
+			$(pub $optional_name: Option<$optional_return_type> ,)*
+			$(pub $required_name: $required_return_type ,)*
 		}
 
 		struct FlagParser;

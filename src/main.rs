@@ -1,3 +1,6 @@
+mod arguments;
+
 fn main() {
-	println!("Hello, world!");
+	let args = arguments::parse();
+	println!("Done parsing arguments, got: {:#?}", args);
 }

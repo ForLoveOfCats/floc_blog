@@ -1,3 +1,4 @@
+use std::env::ArgsOs;
 use std::ffi::OsString;
 use std::path::PathBuf;
 
@@ -12,14 +13,12 @@ macro_rules! arg_parse_error {
 	}};
 }
 
-macro_rules! get_next_arg {
-	($args:ident) => {
-		if let Some(arg) = $args.next() {
-			arg
-		} else {
-			arg_parse_error!("Expected at least one more argument");
-		}
-	};
+fn get_next_arg(args: &mut ArgsOs) -> OsString {
+	if let Some(arg) = args.next() {
+		arg
+	} else {
+		arg_parse_error!("Expected at least one more argument");
+	}
 }
 
 macro_rules! define_flags {
@@ -83,7 +82,7 @@ macro_rules! define_flags {
 								mark_used!($activity_withoutarg_block);
 							)?
 							$(
-								let next = get_next_arg!(args);
+								let next = get_next_arg(&mut args);
 								return FlagParser::$activity_name(next);
 								mark_used!($activity_witharg_block);
 							)?
@@ -97,7 +96,7 @@ macro_rules! define_flags {
 								mark_used!($optional_withoutarg_block);
 							)?
 							$(
-								let next = get_next_arg!(args);
+								let next = get_next_arg(&mut args);
 								return FlagParser::$optional_name(next);
 								mark_used!($optional_witharg_block);
 							)?
@@ -111,7 +110,7 @@ macro_rules! define_flags {
 								mark_used!($required_withoutarg_block);
 							)?
 							$(
-								let next = get_next_arg!(args);
+								let next = get_next_arg(&mut args);
 								return FlagParser::$required_name(next);
 								mark_used!($required_witharg_block);
 							)?

@@ -198,7 +198,7 @@ macro_rules! define_flags {
 				print!("{}", INDENT);
 				print!("{} {}", stringify!($required_short_flag), stringify!($required_long_flag));
 				let len = stringify!($required_short_flag).len() + stringify!($required_long_flag).len() + 4 + 2;
-				println!("{}{}(REQUIRED) {}", &max_width_spaces[len..], INDENT, $required_blurb);
+				println!("{}{}(required) {}", &max_width_spaces[len..], INDENT, $required_blurb);
 			)*
 
 			println!();
@@ -244,12 +244,12 @@ define_flags! {
 		}
 	},
 
-	required input_dir ("-i", "--input") "Input directory to scan for .md files" -> PathBuf {
+	required input_dir ("-i", "--input") "Input directory to scan for .md files and assets" -> PathBuf {
 		witharg(dir) {
 			dir.into()
 		}
 	},
-	required output_dir ("-o", "--output") "Output directory to place .html files" -> PathBuf {
+	required output_dir ("-o", "--output") "Directory to place output files *DESTRUCTIVE, WILL DELETE ORIGINAL FOLDER CONTENTS*" -> PathBuf {
 		witharg(dir) {
 			dir.into()
 		}

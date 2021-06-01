@@ -285,6 +285,16 @@ fn main() {
 		}
 	};
 
+	/*
+	 * NOTE: Silently swallow error here because it can fail
+	 * if the folder does not already exist which is fine.
+	 * If there really is something wrong with the path or
+	 * permissions or whatever then the actual outputting will
+	 * catch that. Otherwise we are uninterested in failure
+	 * here.
+	 */
+	let _ = std::fs::remove_dir_all(&args.output_dir);
+
 	let mut buffers = Buffers {
 		input: String::new(),
 		html: String::new(),

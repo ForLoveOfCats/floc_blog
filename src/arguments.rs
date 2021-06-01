@@ -141,6 +141,35 @@ macro_rules! define_flags {
 		pub fn print_help() {
 			const INDENT: &str = "    ";
 
+			let max_width_spaces = {
+				let mut max_width = 0;
+
+				$({
+					let mut width = 0;
+					width += stringify!($activity_short_flag).len();
+					width += stringify!($activity_long_flag).len();
+					max_width = max_width.max(width);
+				})*
+				$({
+					let mut width = 0;
+					width += stringify!($optional_short_flag).len();
+					width += stringify!($optional_long_flag).len();
+					max_width = max_width.max(width);
+				})*
+				$({
+					let mut width = 0;
+					width += stringify!($required_short_flag).len();
+					width += stringify!($required_long_flag).len();
+					max_width = max_width.max(width);
+				})*
+
+				max_width += 4; //Quotes
+				max_width += 2; //`, `
+
+				String::from_utf8(vec![b' '; max_width])
+					.expect("Somehow failed to build valid string from sequence of spaces")
+			};
+
 			println!("floc_blog, a small barebones static blog generator");
 			println!();
 
@@ -153,7 +182,8 @@ macro_rules! define_flags {
 			$(
 				print!("{}", INDENT);
 				print!("{} {}", stringify!($activity_short_flag), stringify!($activity_long_flag));
-				println!("\t{}", $activity_blurb);
+				let len = stringify!($activity_short_flag).len() + stringify!($activity_long_flag).len() + 4 + 2;
+				println!("{}{}{}", &max_width_spaces[len..], INDENT, $activity_blurb);
 			)*
 			println!();
 
@@ -161,12 +191,14 @@ macro_rules! define_flags {
 			$(
 				print!("{}", INDENT);
 				print!("{} {}", stringify!($optional_short_flag), stringify!($optional_long_flag));
-				println!("\t(optional) {}", $optional_blurb);
+				let len = stringify!($optional_short_flag).len() + stringify!($optional_long_flag).len() + 4 + 2;
+				println!("{}{}(optional) {}", &max_width_spaces[len..], INDENT, $optional_blurb);
 			)*
 			$(
 				print!("{}", INDENT);
 				print!("{} {}", stringify!($required_short_flag), stringify!($required_long_flag));
-				println!("\t(required) {}", $required_blurb);
+				let len = stringify!($required_short_flag).len() + stringify!($required_long_flag).len() + 4 + 2;
+				println!("{}{}(REQUIRED) {}", &max_width_spaces[len..], INDENT, $required_blurb);
 			)*
 
 			println!();
@@ -179,6 +211,30 @@ define_flags! {
 		withoutarg() {
 			print_help();
 			std::process::exit(0);
+		}
+	},
+
+	optional favicon ("-s", "--favicon") "Favicon image for generated pages" -> String {
+		witharg(favicon) {
+			favicon.to_string_lossy().into()
+		}
+	},
+
+	optional language ("-l", "--language") "Language to specify in generated output" -> String {
+		witharg(language) {
+			language.to_string_lossy().into()
+		}
+	},
+
+	optional opengraph_locale ("-ol", "--opengraph-locale") "Locale for in Open Graph metadata" -> String {
+		witharg(locale) {
+			locale.to_string_lossy().into()
+		}
+	},
+
+	optional opengraph_sitename ("-os", "--opengraph-sitename") "Site name for in Open Graph metadata" -> String {
+		witharg(name) {
+			name.to_string_lossy().into()
 		}
 	},
 

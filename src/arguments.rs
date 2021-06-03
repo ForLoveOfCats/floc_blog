@@ -23,6 +23,8 @@ fn get_next_arg(args: &mut ArgsOs) -> OsString {
 
 macro_rules! define_flags {
 	(
+		$app_description:literal
+
 		$(
 			activity $activity_name:ident ($activity_short_flag:literal, $activity_long_flag:literal) $activity_blurb:literal
 			$({ withoutarg() $activity_withoutarg_block:block })?
@@ -170,7 +172,7 @@ macro_rules! define_flags {
 					.expect("Somehow failed to build valid string from sequence of spaces")
 			};
 
-			println!("floc_blog, a small barebones static blog generator");
+			println!($app_description);
 			println!();
 
 			println!("USAGE:");
@@ -207,6 +209,8 @@ macro_rules! define_flags {
 }
 
 define_flags! {
+	"floc_blog, a small barebones static blog generator"
+
 	activity print_help ("-h", "--help") "Print this help message" {
 		withoutarg() {
 			print_help();
@@ -249,6 +253,7 @@ define_flags! {
 			dir.into()
 		}
 	},
+
 	required output_dir ("-o", "--output") "Directory to place output files *DESTRUCTIVE, WILL DELETE ORIGINAL FOLDER CONTENTS*" -> PathBuf {
 		witharg(dir) {
 			dir.into()

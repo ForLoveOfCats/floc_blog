@@ -41,7 +41,7 @@ impl Fragments {
 			dir.push(name);
 
 			let fragment = match std::fs::read_to_string(&dir) {
-				Ok(fragment) => fragment,
+				Ok(fragment) => fragment.trim().to_string(),
 
 				Err(err) => {
 					eprintln!("Error loading fragment '{}': {}", name, err);
@@ -74,7 +74,7 @@ struct Buffers {
 	author: String,
 }
 
-fn process_markdown(_fragments: &Fragments, args: &Arguments, buffers: &mut Buffers) {
+fn process_markdown(fragments: &Fragments, args: &Arguments, buffers: &mut Buffers) {
 	let mut options = Options::empty();
 	options.insert(Options::ENABLE_TABLES);
 	let parser = Parser::new_ext(&buffers.input, options);
@@ -137,7 +137,7 @@ fn process_markdown(_fragments: &Fragments, args: &Arguments, buffers: &mut Buff
 		let _ = writeln!(buffers.output, r#"<html lang="{}">"#, language);
 	}
 	buffers.output.push_str(multiline!(
-		"<head>"
+		"\n<head>"
 		r#"<meta charset="UTF-8">"#
 	));
 	if !buffers.title.is_empty() {
@@ -181,15 +181,32 @@ fn process_markdown(_fragments: &Fragments, args: &Arguments, buffers: &mut Buff
 			opengraph_sitename
 		);
 	}
-	buffers.output.push_str("</head>\n");
+
+	if !fragments.css.is_empty() {
+		buffers.output.push_str("<style>\n");
+		buffers.output.push_str(&fragments.css);
+		buffers.output.push_str("</style>\n");
+	}
+
+	buffers.output.push_str("</head>\n\n");
+
+	if !fragments.header.is_empty() {
+		buffers.output.push_str(&fragments.header);
+		buffers.output.push_str("\n\n");
+	}
 
 	buffers.output.push_str(&buffers.html);
+
+	if !fragments.footer.is_empty() {
+		buffers.output.push_str("\n\n");
+		buffers.output.push_str(&fragments.footer);
+	}
 }
 
 fn process_file(
 	path: PathBuf,
 	output_path: PathBuf,
-	_fragments: &Fragments,
+	fragments: &Fragments,
 	args: &Arguments,
 	buffers: &mut Buffers,
 ) {
@@ -240,7 +257,7 @@ fn process_file(
 			std::process::exit(-1);
 		}
 
-		process_markdown(_fragments, args, buffers);
+		process_markdown(fragments, args, buffers);
 
 		if let Err(err) = std::fs::write(&output_path, &buffers.output) {
 			eprintln!(

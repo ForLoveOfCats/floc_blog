@@ -445,12 +445,7 @@ fn process_dir(
 	}
 }
 
-fn format_rss(args: &Arguments, blog_entries: &[BlogEntry]) -> Option<String> {
-	let base_url = match &args.blog_base_url {
-		Some(base_url) => base_url.as_str(),
-		None => return None,
-	};
-
+fn format_rss(args: &Arguments, blog_entries: &[BlogEntry]) -> String {
 	let items = {
 		let mut items = String::new();
 
@@ -466,7 +461,7 @@ fn format_rss(args: &Arguments, blog_entries: &[BlogEntry]) -> Option<String> {
 				),
 				description = entry.description,
 				date = entry.date.to_rfc2822(),
-				base_url = base_url,
+				base_url = args.blog_base_url,
 				url_name = entry.url_name,
 			)
 			.unwrap();
@@ -493,17 +488,24 @@ fn format_rss(args: &Arguments, blog_entries: &[BlogEntry]) -> Option<String> {
 		items = items,
 	);
 
-	Some(rss)
+	rss
 }
 
-fn format_blog_list(blog_entries: Vec<BlogEntry>, fragments: Fragments) -> String {
+fn format_blog_list(
+	args: &Arguments,
+	blog_entries: Vec<BlogEntry>,
+	fragments: Fragments,
+) -> String {
 	let formatted_entries = {
 		let mut formatted_entries = String::new();
+
 		for entry in blog_entries {
+			let link = format!("{}/{}", args.blog_base_url, entry.url_name);
 			let template_values = map![
 				"TITLE" => entry.title,
 				"DESCRIPTION" => entry.description,
 				"DATE" => entry.date.to_rfc2822(),
+				"LINK" => link,
 			];
 
 			let formatted = format_template(fragments.blog_entry.clone(), template_values);
@@ -605,7 +607,9 @@ fn main() {
 
 	blog_entries.sort_by(|left, right| left.date.cmp(&right.date));
 
-	if let Some(rss) = format_rss(&args, &blog_entries) {
+	{
+		let rss = format_rss(&args, &blog_entries);
+
 		let mut output_path = args.output_dir.clone();
 		output_path.push("feed.rss");
 
@@ -620,7 +624,7 @@ fn main() {
 	}
 
 	{
-		let list_page = format_blog_list(blog_entries, fragments);
+		let list_page = format_blog_list(&args, blog_entries, fragments);
 
 		let mut output_path = args.output_dir;
 		output_path.push("index.html");

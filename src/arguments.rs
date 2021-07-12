@@ -242,15 +242,15 @@ define_flags! {
 		}
 	},
 
-	optional blog_base_url ("-u", "--base-url") "Base URL for blog subfolder" -> String {
-		witharg(url) {
-			url.to_string_lossy().into()
-		}
-	},
-
 	optional fragments_dir ("-f", "--fragments") "Directory to retrive html footer/header/ect fragments from" -> PathBuf {
 		witharg(dir) {
 			dir.into()
+		}
+	},
+
+	required blog_base_url ("-u", "--base-url") "Base URL for blog subfolder" -> String {
+		witharg(url) {
+			url.to_string_lossy().into()
 		}
 	},
 

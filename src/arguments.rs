@@ -230,7 +230,7 @@ define_flags! {
 		}
 	},
 
-	optional opengraph_locale ("-ol", "--opengraph-locale") "Locale for in Open Graph metadata" -> String {
+	optional opengraph_locale ("-ol", "--opengraph-locale") "Locale for in Open Graph metadata *AND* RSS feed" -> String {
 		witharg(locale) {
 			locale.to_string_lossy().into()
 		}
@@ -239,6 +239,12 @@ define_flags! {
 	optional opengraph_sitename ("-os", "--opengraph-sitename") "Site name for in Open Graph metadata" -> String {
 		witharg(name) {
 			name.to_string_lossy().into()
+		}
+	},
+
+	optional blog_base_url ("-u", "--base-url") "Base URL for blog subfolder" -> String {
+		witharg(url) {
+			url.to_string_lossy().into()
 		}
 	},
 

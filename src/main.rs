@@ -9,8 +9,12 @@ use chrono::{DateTime, Utc};
 use pulldown_cmark::{html, CodeBlockKind, CowStr, Event, Options, Parser, Tag};
 
 mod arguments;
+mod template;
 
 use arguments::Arguments;
+use template::format_template;
+
+pub const VERSION: &str = "0.0.1";
 
 macro_rules! multiline {
 	( $($line:expr)* ) => {
@@ -18,9 +22,19 @@ macro_rules! multiline {
 	}
 }
 
+macro_rules! map {
+	[ $($key:expr => $value:expr,)* ] => {{
+		let mut map = std::collections::HashMap::new();
+		$(
+			map.insert($key, $value);
+		)*
+		map
+	}}
+}
+
 #[derive(Debug)]
 struct BlogEntry {
-	output_path: String,
+	url_name: String,
 	title: String,
 	description: String,
 	date: DateTime<Utc>,
@@ -31,6 +45,8 @@ struct Fragments {
 	css: String,
 	header: String,
 	footer: String,
+	blog_entry: String,
+	blog_list: String,
 }
 
 impl Fragments {
@@ -43,6 +59,8 @@ impl Fragments {
 					css: String::new(),
 					header: String::new(),
 					footer: String::new(),
+					blog_entry: String::new(),
+					blog_list: String::new(),
 				};
 			}
 		};
@@ -66,11 +84,15 @@ impl Fragments {
 		let css = get_fragment(&mut dir, "style.css");
 		let header = get_fragment(&mut dir, "header.html");
 		let footer = get_fragment(&mut dir, "footer.html");
+		let blog_entry = get_fragment(&mut dir, "blog_entry.html");
+		let blog_list = get_fragment(&mut dir, "blog_list.html");
 
 		Fragments {
 			css,
 			header,
 			footer,
+			blog_entry,
+			blog_list,
 		}
 	}
 }
@@ -239,6 +261,7 @@ fn process_file(
 	args: &Arguments,
 	path: &Path,
 	output_path: PathBuf,
+	url_name: &str,
 	fragments: &Fragments,
 	buffers: &mut Buffers,
 	blog_entries: &mut Vec<BlogEntry>,
@@ -322,7 +345,7 @@ fn process_file(
 		};
 
 		let blog_entry = BlogEntry {
-			output_path: path.to_string_lossy().into(),
+			url_name: url_name.to_string(),
 			title,
 			description,
 			date: date.into(),
@@ -348,6 +371,7 @@ fn process_dir(
 	buffers: &mut Buffers,
 	blog_entries: &mut Vec<BlogEntry>,
 ) {
+	let url_name = folder_name.to_string_lossy();
 	let dir = match std::fs::read_dir(dir_path) {
 		Ok(dir) => dir,
 
@@ -402,6 +426,7 @@ fn process_dir(
 					args,
 					&file_path,
 					output_path,
+					&url_name,
 					fragments,
 					buffers,
 					blog_entries,
@@ -418,6 +443,79 @@ fn process_dir(
 			}
 		}
 	}
+}
+
+fn format_rss(args: &Arguments, blog_entries: &[BlogEntry]) -> Option<String> {
+	let base_url = match &args.blog_base_url {
+		Some(base_url) => base_url.as_str(),
+		None => return None,
+	};
+
+	let items = {
+		let mut items = String::new();
+
+		for entry in blog_entries {
+			write!(
+				items,
+				multiline!(
+					"<item>"
+					"	<description>{description}</description>"
+					"	<pubDate>{date}</pubDate>"
+					"	<link>{base_url}/{url_name}</link>"
+					"</item>"
+				),
+				description = entry.description,
+				date = entry.date.to_rfc2822(),
+				base_url = base_url,
+				url_name = entry.url_name,
+			)
+			.unwrap();
+		}
+
+		items
+	};
+
+	let rss = format!(
+		multiline!(
+			r#"<?xml version="1.0"?>"#
+			"<!--RSS generated {date} by floc_blog {version}-->"
+			r#"<rss version="2.0">"#
+			"<language>{language}</language>"
+			"<generator>floc_blog {version}</generator>"
+			r#"<channel>"#
+			"\n{items}"
+			r#"</channel>"#
+			r#"</rss>"#
+		),
+		date = Utc::now().to_rfc2822(),
+		version = VERSION,
+		language = args.language.clone().unwrap_or_else(|| "en_US".to_string()),
+		items = items,
+	);
+
+	Some(rss)
+}
+
+fn format_blog_list(blog_entries: Vec<BlogEntry>, fragments: Fragments) -> String {
+	let formatted_entries = {
+		let mut formatted_entries = String::new();
+		for entry in blog_entries {
+			let template_values = map![
+				"TITLE" => entry.title,
+				"DESCRIPTION" => entry.description,
+				"DATE" => entry.date.to_rfc2822(),
+			];
+
+			let formatted = format_template(fragments.blog_entry.clone(), template_values);
+			formatted_entries.push_str(&formatted);
+		}
+		formatted_entries
+	};
+
+	let template_values = map![
+		"ENTRIES" => formatted_entries,
+	];
+	format_template(fragments.blog_list, template_values)
 }
 
 fn main() {
@@ -505,5 +603,35 @@ fn main() {
 		}
 	}
 
-	println!("{:#?}", blog_entries);
+	blog_entries.sort_by(|left, right| left.date.cmp(&right.date));
+
+	if let Some(rss) = format_rss(&args, &blog_entries) {
+		let mut output_path = args.output_dir.clone();
+		output_path.push("feed.rss");
+
+		if let Err(err) = std::fs::write(&output_path, &rss) {
+			eprintln!(
+				"Error writing RSS feed file'{}': {}",
+				output_path.to_string_lossy(),
+				err
+			);
+			std::process::exit(-1);
+		}
+	}
+
+	{
+		let list_page = format_blog_list(blog_entries, fragments);
+
+		let mut output_path = args.output_dir;
+		output_path.push("index.html");
+
+		if let Err(err) = std::fs::write(&output_path, &list_page) {
+			eprintln!(
+				"Error writing blog entry list '{}': {}",
+				output_path.to_string_lossy(),
+				err
+			);
+			std::process::exit(-1);
+		}
+	}
 }

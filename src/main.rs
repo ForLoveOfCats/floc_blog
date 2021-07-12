@@ -4,7 +4,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::path::PathBuf;
 
-use pulldown_cmark::{html, Event, Options, Parser};
+use pulldown_cmark::{html, CodeBlockKind, CowStr, Event, Options, Parser, Tag};
 
 mod arguments;
 
@@ -92,6 +92,18 @@ fn process_markdown(fragments: &Fragments, args: &Arguments, buffers: &mut Buffe
 	author_buffer.clear();
 
 	let parser = parser.map(|event| {
+		if let Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(language))) = &event {
+			if *language == CowStr::Borrowed("image_description") {
+				return Event::Html(CowStr::Borrowed(r#"<div class="ImageDescription"><p>"#));
+			}
+		}
+
+		if let Event::End(Tag::CodeBlock(CodeBlockKind::Fenced(language))) = &event {
+			if *language == CowStr::Borrowed("image_description") {
+				return Event::Html(CowStr::Borrowed(r#"</p></div>"#));
+			}
+		}
+
 		if let Event::Html(html) = &event {
 			let html = html.trim();
 			if html.starts_with("<!--") && html.ends_with("-->") {
@@ -125,6 +137,7 @@ fn process_markdown(fragments: &Fragments, args: &Arguments, buffers: &mut Buffe
 				}
 			}
 		}
+
 		event
 	});
 

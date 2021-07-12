@@ -605,7 +605,7 @@ fn main() {
 		}
 	}
 
-	blog_entries.sort_by(|left, right| left.date.cmp(&right.date));
+	blog_entries.sort_by(|left, right| right.date.cmp(&left.date));
 
 	{
 		let rss = format_rss(&args, &blog_entries);

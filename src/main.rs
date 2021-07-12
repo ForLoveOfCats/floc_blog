@@ -1,8 +1,10 @@
+use std::ffi::OsStr;
 use std::fmt::Write;
-use std::fs::canonicalize;
 use std::fs::File;
 use std::io::prelude::*;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+use chrono::{DateTime, Utc};
 
 use pulldown_cmark::{html, CodeBlockKind, CowStr, Event, Options, Parser, Tag};
 
@@ -14,6 +16,14 @@ macro_rules! multiline {
 	( $($line:expr)* ) => {
 		concat!( $($line, "\n"),* )
 	}
+}
+
+#[derive(Debug)]
+struct BlogEntry {
+	output_path: String,
+	title: String,
+	description: String,
+	date: DateTime<Utc>,
 }
 
 #[derive(Debug)]
@@ -69,9 +79,11 @@ struct Buffers {
 	input: String,
 	html: String,
 	output: String,
+
 	title: String,
 	description: String,
 	author: String,
+	date: String,
 }
 
 fn process_markdown(fragments: &Fragments, args: &Arguments, buffers: &mut Buffers) {
@@ -90,6 +102,8 @@ fn process_markdown(fragments: &Fragments, args: &Arguments, buffers: &mut Buffe
 	description_buffer.clear();
 	let author_buffer = &mut buffers.author;
 	author_buffer.clear();
+	let date_buffer = &mut buffers.date;
+	date_buffer.clear();
 
 	let parser = parser.map(|event| {
 		if let Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(language))) = &event {
@@ -130,6 +144,11 @@ fn process_markdown(fragments: &Fragments, args: &Arguments, buffers: &mut Buffe
 						"author" => {
 							author_buffer.clear();
 							author_buffer.push_str(trailing);
+						}
+
+						"date" => {
+							date_buffer.clear();
+							date_buffer.push_str(trailing);
 						}
 
 						_ => {}
@@ -217,11 +236,12 @@ fn process_markdown(fragments: &Fragments, args: &Arguments, buffers: &mut Buffe
 }
 
 fn process_file(
-	path: PathBuf,
+	args: &Arguments,
+	path: &Path,
 	output_path: PathBuf,
 	fragments: &Fragments,
-	args: &Arguments,
 	buffers: &mut Buffers,
+	blog_entries: &mut Vec<BlogEntry>,
 ) {
 	if let Some(dir_path) = output_path.parent() {
 		/*
@@ -272,6 +292,43 @@ fn process_file(
 
 		process_markdown(fragments, args, buffers);
 
+		fn check_error<'a>(text: &'a str, attribute: &str, path: &Path) -> &'a str {
+			if text.is_empty() {
+				eprintln!(
+					"Error input file '{}' is missing {} attribute",
+					path.to_string_lossy(),
+					attribute
+				);
+				std::process::exit(-1);
+			} else {
+				text
+			}
+		}
+
+		let title = check_error(&buffers.title, "title", &path).to_string();
+		let description = check_error(&buffers.description, "description", &path).to_string();
+
+		let date = check_error(&buffers.date, "date", &path);
+		let date = match DateTime::parse_from_str(date, "%d %b %Y %H:%M:%S %z") {
+			Ok(date) => date,
+			Err(err) => {
+				eprintln!(
+					"Error parsing date attribute in input file '{}': {}",
+					path.to_string_lossy(),
+					err
+				);
+				std::process::exit(-1);
+			}
+		};
+
+		let blog_entry = BlogEntry {
+			output_path: path.to_string_lossy().into(),
+			title,
+			description,
+			date: date.into(),
+		};
+		blog_entries.push(blog_entry);
+
 		if let Err(err) = std::fs::write(&output_path, &buffers.output) {
 			eprintln!(
 				"Error writing HTML to path '{}': {}",
@@ -283,24 +340,90 @@ fn process_file(
 	}
 }
 
-fn main() {
-	let args = arguments::parse();
-
-	let fragments = Fragments::retrive_or_shim(args.fragments_dir.clone());
-
-	let canonical_input_dir = match canonicalize(&args.input_dir) {
-		Ok(canonical_input_dir) => canonical_input_dir,
+fn process_dir(
+	args: &Arguments,
+	folder_name: &OsStr,
+	dir_path: &Path,
+	fragments: &Fragments,
+	buffers: &mut Buffers,
+	blog_entries: &mut Vec<BlogEntry>,
+) {
+	let dir = match std::fs::read_dir(dir_path) {
+		Ok(dir) => dir,
 
 		Err(err) => {
 			eprintln!(
-				"Error canoncializing input dir path '{}': {}",
-				args.input_dir.to_string_lossy(),
+				"Error opening dir '{}': {}",
+				dir_path.to_string_lossy(),
 				err
 			);
 			std::process::exit(-1);
 		}
 	};
-	let canonical_input_dir_component_count = canonical_input_dir.components().count();
+
+	for entry in dir {
+		match entry {
+			Ok(entry) => {
+				let file_path = entry.path();
+				let file_name = file_path.file_name().unwrap_or_else(|| {
+					eprintln!(
+						"Failed to get filename for '{}'",
+						file_path.to_string_lossy()
+					);
+					std::process::exit(-1);
+				});
+				let extension = file_path
+					.extension()
+					.map(|e| e.to_str())
+					.unwrap_or(Some(""))
+					.unwrap_or("");
+
+				let output_path = {
+					let mut output_path = args.output_dir.clone();
+					output_path.push(folder_name);
+
+					if extension == "md" {
+						if file_name != "content.md" {
+							eprintln!(
+								"Error, markdown file '{}' is not named 'content.md'",
+								file_path.to_string_lossy()
+							);
+							std::process::exit(-1);
+						}
+						output_path.push("index.html");
+					} else {
+						output_path.push(file_name);
+					}
+
+					output_path
+				};
+
+				process_file(
+					args,
+					&file_path,
+					output_path,
+					fragments,
+					buffers,
+					blog_entries,
+				);
+			}
+
+			Err(err) => {
+				eprintln!(
+					"Error walking dir '{}': {}",
+					dir_path.to_string_lossy(),
+					err
+				);
+				std::process::exit(-1);
+			}
+		}
+	}
+}
+
+fn main() {
+	let args = arguments::parse();
+
+	let fragments = Fragments::retrive_or_shim(args.fragments_dir.clone());
 
 	let input_dir = match std::fs::read_dir(&args.input_dir) {
 		Ok(input_dir) => input_dir,
@@ -325,6 +448,8 @@ fn main() {
 	 */
 	let _ = std::fs::remove_dir_all(&args.output_dir);
 
+	let mut blog_entries = Vec::new();
+
 	let mut buffers = Buffers {
 		input: String::new(),
 		html: String::new(),
@@ -332,64 +457,53 @@ fn main() {
 		title: String::new(),
 		description: String::new(),
 		author: String::new(),
+		date: String::new(),
 	};
 
-	let mut stack = vec![input_dir];
-	while let Some(top) = stack.last_mut() {
-		match top.next() {
-			Some(Ok(entry)) => {
+	for entry in input_dir {
+		match entry {
+			Ok(entry) => {
 				let path = entry.path();
 
-				let is_file = entry.file_type().map(|e| e.is_file()).unwrap_or(false);
+				let file_name = path.file_stem().map(|name| name.to_str());
+				if let Some(Some("index")) = file_name {
+					eprintln!(
+						"Error, file '{}' should not be named 'index.*'",
+						path.to_string_lossy(),
+					);
+					std::process::exit(-1);
+				}
+
 				let is_dir = entry.file_type().map(|e| e.is_dir()).unwrap_or(false);
 
-				if is_file {
-					let canonical_file_path = match canonicalize(&path) {
-						Ok(canonical_file_path) => canonical_file_path,
+				if is_dir {
+					let folder_name = path
+						.file_name()
+						.expect("Somehow failed to get folder filename");
 
-						Err(err) => {
-							eprintln!(
-								"Error canoncializing file path '{}': {}",
-								path.to_string_lossy(),
-								err
-							);
-							std::process::exit(-1);
-						}
-					};
-
-					let trailing_path = canonical_file_path
-						.components()
-						.skip(canonical_input_dir_component_count)
-						.collect::<PathBuf>();
-
-					let output_path = {
-						let mut output_path = args.output_dir.clone();
-						output_path.push(trailing_path);
-
-						if let Some(Some("md")) = output_path.extension().map(|e| e.to_str()) {
-							output_path.set_extension("html");
-						}
-
-						output_path
-					};
-
-					process_file(path, output_path, &fragments, &args, &mut buffers);
-				} else if is_dir {
-					if let Ok(sub) = std::fs::read_dir(path) {
-						stack.push(sub);
-						continue;
-					}
+					process_dir(
+						&args,
+						folder_name,
+						&path,
+						&fragments,
+						&mut buffers,
+						&mut blog_entries,
+					);
+				} else {
+					eprintln!(
+						"Found file '{}' at root level in input directory",
+						path.to_string_lossy()
+					);
+					std::process::exit(-1);
 				}
 			}
 
-			Some(Err(err)) => {
+			Err(err) => {
 				eprintln!("Error walking input dir: {}", err);
 				std::process::exit(-1);
 			}
-
-			None => {
-				stack.pop();
-			}
 		}
 	}
+
+	println!("{:#?}", blog_entries);
 }

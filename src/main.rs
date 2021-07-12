@@ -504,7 +504,7 @@ fn format_blog_list(
 			let template_values = map![
 				"TITLE" => entry.title,
 				"DESCRIPTION" => entry.description,
-				"DATE" => entry.date.to_rfc2822(),
+				"DATE" => format!("{}", entry.date.format("%A the %eth of %B %Y")),
 				"LINK" => link,
 			];
 

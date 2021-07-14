@@ -534,11 +534,13 @@ fn format_rss(args: &Arguments, feed_id: Option<u32>, blog_entries: &[BlogEntry]
 				items,
 				multiline!(
 					"<item>"
+					"	<title>{title}</title>"
 					"	<description>{description}</description>"
 					"	<pubDate>{date}</pubDate>"
 					"	<link>{base_url}/{url_name}</link>"
 					"</item>"
 				),
+				title = entry.title,
 				description = entry.description,
 				date = entry.date.to_rfc2822(),
 				base_url = args.blog_base_url,
@@ -555,15 +557,17 @@ fn format_rss(args: &Arguments, feed_id: Option<u32>, blog_entries: &[BlogEntry]
 			r#"<?xml version="1.0"?>"#
 			"<!--RSS generated {date} by floc_blog {version}-->"
 			r#"<rss version="2.0">"#
-			"<language>{language}</language>"
-			"<generator>floc_blog {version}</generator>"
 			r#"<channel>"#
+			"<language>{language}</language>"
+			"<title>{title}</title>"
+			"<generator>floc_blog {version}</generator>"
 			"\n{items}"
 			r#"</channel>"#
 			r#"</rss>"#
 		),
 		date = Utc::now().to_rfc2822(),
 		version = VERSION,
+		title = args.opengraph_sitename.as_deref().unwrap_or(""),
 		language = args.language.clone().unwrap_or_else(|| "en_US".to_string()),
 		items = items,
 	);

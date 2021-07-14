@@ -135,12 +135,58 @@ struct Buffers {
 	date: String,
 }
 
+fn build_blog_entry(
+	buffers: &Buffers,
+	path: &Path,
+	url_name: &str,
+	additional_feeds: Vec<u32>,
+) -> BlogEntry {
+	fn check_error<'a>(text: &'a str, attribute: &str, path: &Path) -> &'a str {
+		if text.is_empty() {
+			eprintln!(
+				"Error input file '{}' is missing {} attribute",
+				path.to_string_lossy(),
+				attribute
+			);
+			std::process::exit(-1);
+		} else {
+			text
+		}
+	}
+
+	let title = check_error(&buffers.title, "title", &path).to_string();
+	let description = check_error(&buffers.description, "description", &path).to_string();
+
+	let date = check_error(&buffers.date, "date", &path);
+	let date = match DateTime::parse_from_str(date, "%d %b %Y %H:%M:%S %z") {
+		Ok(date) => date,
+		Err(err) => {
+			eprintln!(
+				"Error parsing date attribute in input file '{}': {}",
+				path.to_string_lossy(),
+				err
+			);
+			std::process::exit(-1);
+		}
+	};
+
+	BlogEntry {
+		url_name: url_name.to_string(),
+		title,
+		description,
+		date: date.into(),
+		additional_feeds,
+	}
+}
+
 fn process_markdown(
 	args: &Arguments,
+	path: &Path,
+	url_name: &str,
 	feed_tracker: &mut FeedTracker,
 	fragments: &Fragments,
 	buffers: &mut Buffers,
-) -> Vec<u32> {
+) -> BlogEntry {
 	let mut options = Options::empty();
 	options.insert(Options::ENABLE_TABLES);
 	let parser = Parser::new_ext(&buffers.input, options);
@@ -224,6 +270,8 @@ fn process_markdown(
 	buffers.html.clear();
 	html::push_html(&mut buffers.html, parser);
 
+	let blog_entry = build_blog_entry(&buffers, &path, url_name, additional_feeds);
+
 	buffers.output.clear();
 	buffers.output.push_str("<!DOCTYPE html>\n");
 	if let Some(language) = &args.language {
@@ -286,7 +334,14 @@ fn process_markdown(
 	buffers.output.push_str("</head>\n\n");
 
 	if !fragments.header.is_empty() {
-		buffers.output.push_str(&fragments.header);
+		let formatted_date = format!("{}", blog_entry.date.format("%A the %eth of %B %Y"));
+		let template_values = map![
+			"TITLE" => blog_entry.title.as_str(),
+			"DESCRIPTION" => blog_entry.description.as_str(),
+			"DATE" => formatted_date.as_str(),
+		];
+		let header = format_template(fragments.header.clone(), template_values);
+		buffers.output.push_str(&header);
 		buffers.output.push_str("\n\n");
 	}
 
@@ -297,7 +352,7 @@ fn process_markdown(
 		buffers.output.push_str(&fragments.footer);
 	}
 
-	additional_feeds
+	blog_entry
 }
 
 //I honestly can't be bothered right now, it's fine
@@ -359,44 +414,7 @@ fn process_file(
 			std::process::exit(-1);
 		}
 
-		let additional_feeds = process_markdown(args, feed_tracker, fragments, buffers);
-
-		fn check_error<'a>(text: &'a str, attribute: &str, path: &Path) -> &'a str {
-			if text.is_empty() {
-				eprintln!(
-					"Error input file '{}' is missing {} attribute",
-					path.to_string_lossy(),
-					attribute
-				);
-				std::process::exit(-1);
-			} else {
-				text
-			}
-		}
-
-		let title = check_error(&buffers.title, "title", &path).to_string();
-		let description = check_error(&buffers.description, "description", &path).to_string();
-
-		let date = check_error(&buffers.date, "date", &path);
-		let date = match DateTime::parse_from_str(date, "%d %b %Y %H:%M:%S %z") {
-			Ok(date) => date,
-			Err(err) => {
-				eprintln!(
-					"Error parsing date attribute in input file '{}': {}",
-					path.to_string_lossy(),
-					err
-				);
-				std::process::exit(-1);
-			}
-		};
-
-		let blog_entry = BlogEntry {
-			url_name: url_name.to_string(),
-			title,
-			description,
-			date: date.into(),
-			additional_feeds,
-		};
+		let blog_entry = process_markdown(args, path, url_name, feed_tracker, fragments, buffers);
 		blog_entries.push(blog_entry);
 
 		if let Err(err) = std::fs::write(&output_path, &buffers.output) {
@@ -555,12 +573,13 @@ fn format_blog_list(
 		let mut formatted_entries = String::new();
 
 		for entry in blog_entries {
+			let formatted_date = format!("{}", entry.date.format("%A the %eth of %B %Y"));
 			let link = format!("{}/{}", args.blog_base_url, entry.url_name);
 			let template_values = map![
-				"TITLE" => entry.title,
-				"DESCRIPTION" => entry.description,
-				"DATE" => format!("{}", entry.date.format("%A the %eth of %B %Y")),
-				"LINK" => link,
+				"TITLE" => entry.title.as_str(),
+				"DESCRIPTION" => entry.description.as_str(),
+				"DATE" => formatted_date.as_str(),
+				"LINK" => link.as_str(),
 			];
 
 			let formatted = format_template(fragments.blog_entry.clone(), template_values);
@@ -570,7 +589,7 @@ fn format_blog_list(
 	};
 
 	let template_values = map![
-		"ENTRIES" => formatted_entries,
+		"ENTRIES" => formatted_entries.as_str(),
 	];
 	format_template(fragments.blog_list, template_values)
 }

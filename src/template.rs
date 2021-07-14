@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-pub fn format_template(template: String, values: HashMap<&str, String>) -> String {
+pub fn format_template(template: String, values: HashMap<&str, &str>) -> String {
 	let mut output = template;
 
 	let mut index = 0;

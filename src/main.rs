@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fmt::Write;
 use std::fs::File;
@@ -32,12 +33,38 @@ macro_rules! map {
 	}}
 }
 
+struct FeedTracker {
+	next_feed_id: u32,
+	ids: HashMap<String, u32>,
+}
+
+impl FeedTracker {
+	fn new() -> FeedTracker {
+		FeedTracker {
+			next_feed_id: 0,
+			ids: HashMap::new(),
+		}
+	}
+
+	fn identify(&mut self, name: &str) -> u32 {
+		if let Some(&id) = self.ids.get(name) {
+			return id;
+		}
+
+		let id = self.next_feed_id;
+		self.next_feed_id += 1;
+		self.ids.insert(name.to_string(), id);
+		id
+	}
+}
+
 #[derive(Debug)]
 struct BlogEntry {
 	url_name: String,
 	title: String,
 	description: String,
 	date: DateTime<Utc>,
+	additional_feeds: Vec<u32>,
 }
 
 #[derive(Debug)]
@@ -108,7 +135,12 @@ struct Buffers {
 	date: String,
 }
 
-fn process_markdown(fragments: &Fragments, args: &Arguments, buffers: &mut Buffers) {
+fn process_markdown(
+	args: &Arguments,
+	feed_tracker: &mut FeedTracker,
+	fragments: &Fragments,
+	buffers: &mut Buffers,
+) -> Vec<u32> {
 	let mut options = Options::empty();
 	options.insert(Options::ENABLE_TABLES);
 	let parser = Parser::new_ext(&buffers.input, options);
@@ -126,6 +158,8 @@ fn process_markdown(fragments: &Fragments, args: &Arguments, buffers: &mut Buffe
 	author_buffer.clear();
 	let date_buffer = &mut buffers.date;
 	date_buffer.clear();
+
+	let mut additional_feeds = Vec::new();
 
 	let parser = parser.map(|event| {
 		if let Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(language))) = &event {
@@ -171,6 +205,11 @@ fn process_markdown(fragments: &Fragments, args: &Arguments, buffers: &mut Buffe
 						"date" => {
 							date_buffer.clear();
 							date_buffer.push_str(trailing);
+						}
+
+						"additional-feed" => {
+							let feed_id = feed_tracker.identify(trailing);
+							additional_feeds.push(feed_id);
 						}
 
 						_ => {}
@@ -257,10 +296,15 @@ fn process_markdown(fragments: &Fragments, args: &Arguments, buffers: &mut Buffe
 		buffers.output.push_str("\n\n");
 		buffers.output.push_str(&fragments.footer);
 	}
+
+	additional_feeds
 }
 
+//I honestly can't be bothered right now, it's fine
+#[allow(clippy::too_many_arguments)]
 fn process_file(
 	args: &Arguments,
+	feed_tracker: &mut FeedTracker,
 	path: &Path,
 	output_path: PathBuf,
 	url_name: &str,
@@ -315,7 +359,7 @@ fn process_file(
 			std::process::exit(-1);
 		}
 
-		process_markdown(fragments, args, buffers);
+		let additional_feeds = process_markdown(args, feed_tracker, fragments, buffers);
 
 		fn check_error<'a>(text: &'a str, attribute: &str, path: &Path) -> &'a str {
 			if text.is_empty() {
@@ -351,6 +395,7 @@ fn process_file(
 			title,
 			description,
 			date: date.into(),
+			additional_feeds,
 		};
 		blog_entries.push(blog_entry);
 
@@ -367,6 +412,7 @@ fn process_file(
 
 fn process_dir(
 	args: &Arguments,
+	feed_tracker: &mut FeedTracker,
 	folder_name: &OsStr,
 	dir_path: &Path,
 	fragments: &Fragments,
@@ -426,6 +472,7 @@ fn process_dir(
 
 				process_file(
 					args,
+					feed_tracker,
 					&file_path,
 					output_path,
 					&url_name,
@@ -447,11 +494,17 @@ fn process_dir(
 	}
 }
 
-fn format_rss(args: &Arguments, blog_entries: &[BlogEntry]) -> String {
+fn format_rss(args: &Arguments, feed_id: Option<u32>, blog_entries: &[BlogEntry]) -> String {
 	let items = {
 		let mut items = String::new();
 
 		for entry in blog_entries {
+			if let Some(feed_id) = feed_id {
+				if !entry.additional_feeds.contains(&feed_id) {
+					continue;
+				}
+			}
+
 			write!(
 				items,
 				multiline!(
@@ -522,6 +575,27 @@ fn format_blog_list(
 	format_template(fragments.blog_list, template_values)
 }
 
+fn process_rss_feed(
+	args: &Arguments,
+	feed_name: &str,
+	feed_id: Option<u32>,
+	blog_entries: &[BlogEntry],
+) {
+	let rss = format_rss(args, feed_id, blog_entries);
+
+	let mut output_path = args.output_dir.clone();
+	output_path.push(format!("{}.rss", feed_name));
+
+	if let Err(err) = std::fs::write(&output_path, &rss) {
+		eprintln!(
+			"Error writing RSS feed file'{}': {}",
+			output_path.to_string_lossy(),
+			err
+		);
+		std::process::exit(-1);
+	}
+}
+
 fn main() {
 	let args = arguments::parse();
 
@@ -551,6 +625,7 @@ fn main() {
 	let _ = std::fs::remove_dir_all(&args.output_dir);
 
 	let mut blog_entries = Vec::new();
+	let mut feed_tracker = FeedTracker::new();
 
 	let mut buffers = Buffers {
 		input: String::new(),
@@ -585,6 +660,7 @@ fn main() {
 
 					process_dir(
 						&args,
+						&mut feed_tracker,
 						folder_name,
 						&path,
 						&fragments,
@@ -609,20 +685,9 @@ fn main() {
 
 	blog_entries.sort_by(|left, right| right.date.cmp(&left.date));
 
-	{
-		let rss = format_rss(&args, &blog_entries);
-
-		let mut output_path = args.output_dir.clone();
-		output_path.push("feed.rss");
-
-		if let Err(err) = std::fs::write(&output_path, &rss) {
-			eprintln!(
-				"Error writing RSS feed file'{}': {}",
-				output_path.to_string_lossy(),
-				err
-			);
-			std::process::exit(-1);
-		}
+	process_rss_feed(&args, "feed", None, &blog_entries);
+	for (feed_name, feed_id) in feed_tracker.ids {
+		process_rss_feed(&args, &feed_name, Some(feed_id), &blog_entries);
 	}
 
 	{

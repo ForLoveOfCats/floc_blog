@@ -209,8 +209,10 @@ fn process_markdown(fragments: &Fragments, args: &Arguments, buffers: &mut Buffe
 			buffers.output,
 			multiline!(
 				r#"<meta name="description" content="{description}" />"#
+				r#"<meta property="og:title" content="{title}" />"#
 				r#"<meta property="og:description" content="{description}" />"#
 			),
+			title = buffers.title,
 			description = buffers.description,
 		);
 	}

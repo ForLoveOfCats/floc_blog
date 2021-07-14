@@ -303,6 +303,13 @@ fn process_markdown(
 			description = buffers.description,
 		);
 	}
+	if let Some(favicon_url) = &args.favicon {
+		let _ = writeln!(
+			buffers.output,
+			r#"<meta name="og:image" content="{}">"#,
+			favicon_url,
+		);
+	}
 	if !buffers.author.is_empty() {
 		let _ = writeln!(
 			buffers.output,

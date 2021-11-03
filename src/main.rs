@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Datelike, Utc};
 
 use pulldown_cmark::{html, CodeBlockKind, CowStr, Event, Options, Parser, Tag};
 
@@ -341,12 +341,20 @@ fn process_markdown(
 	buffers.output.push_str("</head>\n\n");
 
 	if !fragments.header.is_empty() {
-		let formatted_date = format!("{}", blog_entry.date.format("%A the %eth of %B %Y"));
+		let format_str = match blog_entry.date.date().day() {
+			1 => "%A the 1st of %B %Y",
+			2 => "%A the 2nd of %B %Y",
+			3 => "%A the 3rd of %B %Y",
+			_ => "%A the %eth of %B %Y",
+		};
+		let formatted_date = format!("{}", blog_entry.date.format(format_str));
+
 		let template_values = map![
 			"TITLE" => blog_entry.title.as_str(),
 			"DESCRIPTION" => blog_entry.description.as_str(),
 			"DATE" => formatted_date.as_str(),
 		];
+
 		let header = format_template(fragments.header.clone(), template_values);
 		buffers.output.push_str(&header);
 		buffers.output.push_str("\n\n");

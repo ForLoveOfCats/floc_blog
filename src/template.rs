@@ -13,7 +13,7 @@ pub fn format_template(template: String, values: HashMap<&str, &str>) -> String 
 			let mut end = None;
 			while index < output.len() {
 				if output.as_bytes()[index] == b'$' {
-					//End of subsitution
+					//End of substitution
 					end = Some(index);
 					break;
 				}

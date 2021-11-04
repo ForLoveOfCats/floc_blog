@@ -77,7 +77,7 @@ struct Fragments {
 }
 
 impl Fragments {
-	fn retrive_or_shim(dir: Option<PathBuf>) -> Fragments {
+	fn retrieve_or_shim(dir: Option<PathBuf>) -> Fragments {
 		let mut dir = match dir {
 			Some(dir) => dir,
 
@@ -154,10 +154,10 @@ fn build_blog_entry(
 		}
 	}
 
-	let title = check_error(&buffers.title, "title", &path).to_string();
-	let description = check_error(&buffers.description, "description", &path).to_string();
+	let title = check_error(&buffers.title, "title", path).to_string();
+	let description = check_error(&buffers.description, "description", path).to_string();
 
-	let date = check_error(&buffers.date, "date", &path);
+	let date = check_error(&buffers.date, "date", path);
 	let date = match DateTime::parse_from_str(date, "%d %b %Y %H:%M:%S %z") {
 		Ok(date) => date,
 		Err(err) => {
@@ -270,7 +270,7 @@ fn process_markdown(
 	buffers.html.clear();
 	html::push_html(&mut buffers.html, parser);
 
-	let blog_entry = build_blog_entry(&buffers, &path, url_name, additional_feeds);
+	let blog_entry = build_blog_entry(buffers, path, url_name, additional_feeds);
 
 	buffers.output.clear();
 	buffers.output.push_str("<!DOCTYPE html>\n");
@@ -324,11 +324,11 @@ fn process_markdown(
 			opengraph_locale
 		);
 	}
-	if let Some(opengraph_sitename) = &args.opengraph_sitename {
+	if let Some(opengraph_site_name) = &args.opengraph_site_name {
 		let _ = writeln!(
 			buffers.output,
 			r#"<meta property="og:site_name" content="{}" />"#,
-			opengraph_sitename
+			opengraph_site_name
 		);
 	}
 
@@ -575,7 +575,7 @@ fn format_rss(args: &Arguments, feed_id: Option<u32>, blog_entries: &[BlogEntry]
 		),
 		date = Utc::now().to_rfc2822(),
 		version = VERSION,
-		title = args.opengraph_sitename.as_deref().unwrap_or(""),
+		title = args.opengraph_site_name.as_deref().unwrap_or(""),
 		language = args.language.clone().unwrap_or_else(|| "en_US".to_string()),
 		items = items,
 	);
@@ -637,7 +637,7 @@ fn process_rss_feed(
 fn main() {
 	let args = arguments::parse();
 
-	let fragments = Fragments::retrive_or_shim(args.fragments_dir.clone());
+	let fragments = Fragments::retrieve_or_shim(args.fragments_dir.clone());
 
 	let input_dir = match std::fs::read_dir(&args.input_dir) {
 		Ok(input_dir) => input_dir,

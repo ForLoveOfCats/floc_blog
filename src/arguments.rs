@@ -27,20 +27,20 @@ macro_rules! define_flags {
 
 		$(
 			activity $activity_name:ident ($activity_short_flag:literal, $activity_long_flag:literal) $activity_blurb:literal
-			$({ withoutarg() $activity_withoutarg_block:block })?
-			$({ witharg($activity_witharg_name:ident) $activity_witharg_block:block })?
+			$({ without_arg() $activity_without_arg_block:block })?
+			$({ with_arg($activity_with_arg_name:ident) $activity_with_arg_block:block })?
 		,)*
 
 		$(
 			optional $optional_name:ident ($optional_short_flag:literal, $optional_long_flag:literal) $optional_blurb:literal -> $optional_return_type:ty
-			$({ withoutarg() $optional_withoutarg_block:block })?
-			$({ witharg($optional_witharg_name:ident) $optional_witharg_block:block} )?
+			$({ without_arg() $optional_without_arg_block:block })?
+			$({ with_arg($optional_with_arg_name:ident) $optional_with_arg_block:block} )?
 		,)*
 
 		$(
 			required $required_name:ident ($required_short_flag:literal, $required_long_flag:literal) $required_blurb:literal -> $required_return_type:ty
-			$({ withoutarg() $required_withoutarg_block:block })?
-			$({ witharg($required_witharg_name:ident) $required_witharg_block:block })?
+			$({ without_arg() $required_without_arg_block:block })?
+			$({ with_arg($required_with_arg_name:ident) $required_with_arg_block:block })?
 		,)*
 	) => {
 		#[derive(Debug, Clone)]
@@ -52,14 +52,14 @@ macro_rules! define_flags {
 		struct FlagParser;
 
 		impl FlagParser {
-			$($( fn $activity_name() $activity_withoutarg_block )?)?
-			$($( fn $activity_name($activity_witharg_name: OsString) $activity_witharg_block )?)?
+			$($( fn $activity_name() $activity_without_arg_block )?)?
+			$($( fn $activity_name($activity_with_arg_name: OsString) $activity_with_arg_block )?)?
 
-			$($( fn $optional_name() -> $optional_return_type $optional_withoutarg_block )?)?
-			$($( fn $optional_name($optional_witharg_name: OsString) -> $optional_return_type $optional_witharg_block )?)?
+			$($( fn $optional_name() -> $optional_return_type $optional_without_arg_block )?)?
+			$($( fn $optional_name($optional_with_arg_name: OsString) -> $optional_return_type $optional_with_arg_block )?)?
 
-			$($( fn $required_name() -> $required_return_type $required_withoutarg_block )?)?
-			$($( fn $required_name($required_witharg_name: OsString) -> $required_return_type $required_witharg_block )?)?
+			$($( fn $required_name() -> $required_return_type $required_without_arg_block )?)?
+			$($( fn $required_name($required_with_arg_name: OsString) -> $required_return_type $required_with_arg_block )?)?
 		}
 
 		pub fn parse() -> Arguments {
@@ -81,12 +81,12 @@ macro_rules! define_flags {
 						(|| {
 							$(
 								return FlagParser::$activity_name();
-								mark_used!($activity_withoutarg_block);
+								mark_used!($activity_without_arg_block);
 							)?
 							$(
 								let next = get_next_arg(&mut args);
 								return FlagParser::$activity_name(next);
-								mark_used!($activity_witharg_block);
+								mark_used!($activity_with_arg_block);
 							)?
 						})();
 					})*
@@ -95,12 +95,12 @@ macro_rules! define_flags {
 						tracker.$optional_name = Some((|| {
 							$(
 								return FlagParser::$optional_name();
-								mark_used!($optional_withoutarg_block);
+								mark_used!($optional_without_arg_block);
 							)?
 							$(
 								let next = get_next_arg(&mut args);
 								return FlagParser::$optional_name(next);
-								mark_used!($optional_witharg_block);
+								mark_used!($optional_with_arg_block);
 							)?
 						})());
 					})*
@@ -109,12 +109,12 @@ macro_rules! define_flags {
 						tracker.$required_name = Some((|| {
 							$(
 								return FlagParser::$required_name();
-								mark_used!($required_withoutarg_block);
+								mark_used!($required_without_arg_block);
 							)?
 							$(
 								let next = get_next_arg(&mut args);
 								return FlagParser::$required_name(next);
-								mark_used!($required_witharg_block);
+								mark_used!($required_with_arg_block);
 							)?
 						})());
 					})*
@@ -209,59 +209,59 @@ macro_rules! define_flags {
 }
 
 define_flags! {
-	"floc_blog, a small barebones static blog generator"
+	"floc_blog, a small bare bones static blog generator"
 
 	activity print_help ("-h", "--help") "Print this help message" {
-		withoutarg() {
+		without_arg() {
 			print_help();
 			std::process::exit(0);
 		}
 	},
 
 	optional favicon ("-s", "--favicon") "Favicon image for generated pages" -> String {
-		witharg(favicon) {
+		with_arg(favicon) {
 			favicon.to_string_lossy().into()
 		}
 	},
 
 	optional language ("-l", "--language") "Language to specify in generated output" -> String {
-		witharg(language) {
+		with_arg(language) {
 			language.to_string_lossy().into()
 		}
 	},
 
 	optional opengraph_locale ("-ol", "--opengraph-locale") "Locale for in Open Graph metadata *AND* RSS feed" -> String {
-		witharg(locale) {
+		with_arg(locale) {
 			locale.to_string_lossy().into()
 		}
 	},
 
-	optional opengraph_sitename ("-os", "--opengraph-sitename") "Site name for in Open Graph metadata" -> String {
-		witharg(name) {
+	optional opengraph_site_name ("-os", "--opengraph-site-name") "Site name for in Open Graph metadata" -> String {
+		with_arg(name) {
 			name.to_string_lossy().into()
 		}
 	},
 
-	optional fragments_dir ("-f", "--fragments") "Directory to retrive html footer/header/ect fragments from" -> PathBuf {
-		witharg(dir) {
+	optional fragments_dir ("-f", "--fragments") "Directory to retrieve html footer/header/ect fragments from" -> PathBuf {
+		with_arg(dir) {
 			dir.into()
 		}
 	},
 
 	required blog_base_url ("-u", "--base-url") "Base URL for blog subfolder" -> String {
-		witharg(url) {
+		with_arg(url) {
 			url.to_string_lossy().into()
 		}
 	},
 
 	required input_dir ("-i", "--input") "Input directory to scan for .md files and assets" -> PathBuf {
-		witharg(dir) {
+		with_arg(dir) {
 			dir.into()
 		}
 	},
 
 	required output_dir ("-o", "--output") "Directory to place output files *DESTRUCTIVE, WILL DELETE ORIGINAL FOLDER CONTENTS*" -> PathBuf {
-		witharg(dir) {
+		with_arg(dir) {
 			dir.into()
 		}
 	},

@@ -341,12 +341,7 @@ fn process_markdown(
 	buffers.output.push_str("</head>\n\n");
 
 	if !fragments.header.is_empty() {
-		let format_str = match blog_entry.date.date().day() {
-			1 | 21 | 31 => "%A the %est of %B %Y",
-			2 | 22 | 32 => "%A the %end of %B %Y",
-			3 | 23 | 33 => "%A the %erd of %B %Y",
-			_ => "%A the %eth of %B %Y",
-		};
+		let format_str = date_format_string(blog_entry.date.date());
 		let formatted_date = format!("{}", blog_entry.date.format(format_str));
 
 		let template_values = map![
@@ -592,8 +587,11 @@ fn format_blog_list(
 		let mut formatted_entries = String::new();
 
 		for entry in blog_entries {
-			let formatted_date = format!("{}", entry.date.format("%A the %eth of %B %Y"));
+			let format_str = date_format_string(entry.date.date());
+			let formatted_date = format!("{}", entry.date.format(format_str));
+
 			let link = format!("{}/{}", args.blog_base_url, entry.url_name);
+
 			let template_values = map![
 				"TITLE" => entry.title.as_str(),
 				"DESCRIPTION" => entry.description.as_str(),
@@ -604,6 +602,7 @@ fn format_blog_list(
 			let formatted = format_template(fragments.blog_entry.clone(), template_values);
 			formatted_entries.push_str(&formatted);
 		}
+
 		formatted_entries
 	};
 
@@ -631,6 +630,15 @@ fn process_rss_feed(
 			err
 		);
 		std::process::exit(-1);
+	}
+}
+
+fn date_format_string<T: Datelike>(date: T) -> &'static str {
+	match date.day() {
+		1 | 21 | 31 => "%A the %est of %B %Y",
+		2 | 22 | 32 => "%A the %end of %B %Y",
+		3 | 23 | 33 => "%A the %erd of %B %Y",
+		_ => "%A the %eth of %B %Y",
 	}
 }
 

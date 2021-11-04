@@ -342,9 +342,9 @@ fn process_markdown(
 
 	if !fragments.header.is_empty() {
 		let format_str = match blog_entry.date.date().day() {
-			1 => "%A the 1st of %B %Y",
-			2 => "%A the 2nd of %B %Y",
-			3 => "%A the 3rd of %B %Y",
+			1 | 21 | 31 => "%A the %est of %B %Y",
+			2 | 22 | 32 => "%A the %end of %B %Y",
+			3 | 23 | 33 => "%A the %erd of %B %Y",
 			_ => "%A the %eth of %B %Y",
 		};
 		let formatted_date = format!("{}", blog_entry.date.format(format_str));

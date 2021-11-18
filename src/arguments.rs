@@ -23,7 +23,7 @@ fn get_next_arg(args: &mut ArgsOs) -> OsString {
 
 macro_rules! define_flags {
 	(
-		$app_description:literal
+		$app_name:literal, $app_description:literal
 
 		$(
 			activity $activity_name:ident ($activity_short_flag:literal, $activity_long_flag:literal) $activity_blurb:literal
@@ -176,8 +176,8 @@ macro_rules! define_flags {
 			println!();
 
 			println!("USAGE:");
-			println!("{}floc_blog [ACTION]", INDENT);
-			println!("{}floc_blog [FLAGS]", INDENT);
+			println!("{}{} [ACTION]", $app_name, INDENT);
+			println!("{}{} [FLAGS]", $app_name, INDENT);
 			println!();
 
 			println!("ACTIONS:");
@@ -209,7 +209,7 @@ macro_rules! define_flags {
 }
 
 define_flags! {
-	"floc_blog, a small bare bones static blog generator"
+	"floc_blog", "floc_blog, a small bare bones static blog generator"
 
 	activity print_help ("-h", "--help") "Print this help message" {
 		without_arg() {

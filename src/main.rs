@@ -191,19 +191,10 @@ fn process_markdown(
 	options.insert(Options::ENABLE_TABLES);
 	let parser = Parser::new_ext(&buffers.input, options);
 
-	/*
-	 * NOTE: Borrowing these here borrows just the field instead of the entire
-	 * struct which allows the closure to have mutable access to these two fields
-	 * while `html::push_html` writes to another field.
-	 */
-	let title_buffer = &mut buffers.title;
-	title_buffer.clear();
-	let description_buffer = &mut buffers.description;
-	description_buffer.clear();
-	let author_buffer = &mut buffers.author;
-	author_buffer.clear();
-	let date_buffer = &mut buffers.date;
-	date_buffer.clear();
+	buffers.title.clear();
+	buffers.description.clear();
+	buffers.author.clear();
+	buffers.date.clear();
 
 	let mut additional_feeds = Vec::new();
 
@@ -234,23 +225,23 @@ fn process_markdown(
 
 					match label {
 						"title" => {
-							title_buffer.clear();
-							title_buffer.push_str(trailing);
+							buffers.title.clear();
+							buffers.title.push_str(trailing);
 						}
 
 						"description" => {
-							description_buffer.clear();
-							description_buffer.push_str(trailing);
+							buffers.description.clear();
+							buffers.description.push_str(trailing);
 						}
 
 						"author" => {
-							author_buffer.clear();
-							author_buffer.push_str(trailing);
+							buffers.author.clear();
+							buffers.author.push_str(trailing);
 						}
 
 						"date" => {
-							date_buffer.clear();
-							date_buffer.push_str(trailing);
+							buffers.date.clear();
+							buffers.date.push_str(trailing);
 						}
 
 						"additional-feed" => {
